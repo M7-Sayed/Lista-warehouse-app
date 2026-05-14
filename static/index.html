@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>معالج الليسته</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
+
+:root {
+  --bg: #0a0f1e;
+  --surface: #111827;
+  --surface2: #1a2235;
+  --accent: #00d4ff;
+  --accent2: #7c3aed;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+  --border: #1e293b;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Cairo', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; right: -20%;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(0,212,255,0.05) 0%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+
+/* Layout */
+.app { display: flex; min-height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  z-index: 100;
+  overflow-y: auto;
+}
+
+.sidebar-header {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-header h2 {
+  font-size: 1.1rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 12px;
+}
+
+.btn-add-warehouse {
+  width: 100%;
+  padding: 10px;
+  background: rgba(0,212,255,0.1);
+  border: 1px dashed rgba(0,212,255,0.3);
+  border-radius: 10px;
+  color: var(--accent);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn-add-warehouse:hover { background: rgba(0,212,255,0.15); }
+
+.add-warehouse-form {
+  display: none;
+  padding: 12px 0 4px;
+}
+.add-warehouse-form.show { display: block; }
+.add-warehouse-form input {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  outline: none;
+}
+.add-warehouse-form input:focus { border-color: var(--accent); }
+.form-btns { display: flex; gap: 6px; }
+.btn-confirm {
+  flex: 1; padding: 8px;
+  background: var(--accent); border: none; border-radius: 7px;
+  color: #000; font-family: 'Cairo', sans-serif;
+  font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.btn-cancel-sm {
+  padding: 8px 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text-muted);
+  font-family: 'Cairo', sans-serif; font-size: 0.8rem; cursor: pointer;
+}
+
+.warehouses-list { padding: 12px; flex: 1; }
+
+.warehouse-item {
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+  position: relative;
+}
+.warehouse-item:hover { background: var(--surface2); }
+.warehouse-item.active {
+  background: rgba(0,212,255,0.08);
+  border-color: rgba(0,212,255,0.2);
+}
+.warehouse-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.warehouse-item.active .warehouse-name { color: var(--accent); }
+.warehouse-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 300;
+}
+.warehouse-quota-badge {
+  display: inline-block;
+  background: rgba(16,185,129,0.15);
+  color: var(--success);
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  margin-top: 3px;
+  font-weight: 600;
+}
+.warehouse-quota-badge.no-quota {
+  background: rgba(239,68,68,0.1);
+  color: var(--error);
+}
+.btn-delete-warehouse {
+  position: absolute;
+  top: 10px; left: 10px;
+  background: none; border: none;
+  color: var(--text-muted); cursor: pointer;
+  font-size: 0.7rem; opacity: 0;
+  transition: opacity 0.2s;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+.warehouse-item:hover .btn-delete-warehouse { opacity: 1; }
+.btn-delete-warehouse:hover { background: rgba(239,68,68,0.1); color: var(--error); }
+
+/* Main content */
+.main {
+  margin-right: 280px;
+  flex: 1;
+  padding: 32px 28px;
+  position: relative;
+  z-index: 1;
+}
+
+.page-header {
+  margin-bottom: 28px;
+}
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 4px;
+}
+.page-header p { color: var(--text-muted); font-size: 0.9rem; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--text-muted);
+}
+.empty-state .big-icon { font-size: 4rem; margin-bottom: 16px; }
+.empty-state h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text); }
+
+/* Cards grid */
+.cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+@media (max-width: 900px) { .cards-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  animation: fadeUp 0.4s ease both;
+}
+.card-full { grid-column: 1 / -1; }
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 10px;
+}
+.card-icon {
+  width: 30px; height: 30px;
+  background: rgba(0,212,255,0.1);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem;
+}
+
+/* Drop zones */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+  background: var(--surface2);
+  margin-bottom: 14px;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(0,212,255,0.03); }
+.drop-zone.has-file { border-color: var(--success); background: rgba(16,185,129,0.03); }
+.drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.drop-icon { font-size: 1.8rem; margin-bottom: 8px; display: block; }
+.drop-text { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+.drop-text strong { color: var(--text); }
+.file-badge {
+  display: none;
+  padding: 8px 14px;
+  background: rgba(16,185,129,0.1);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--success);
+  font-weight: 600;
+}
+.drop-zone.has-file .file-badge { display: inline-block; }
+.drop-zone.has-file .drop-icon,
+.drop-zone.has-file .drop-text { display: none; }
+
+.optional-tag {
+  display: inline-block;
+  background: rgba(245,158,11,0.12);
+  color: var(--warning);
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-right: 4px;
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--accent), #0099cc);
+  border: none; border-radius: 10px;
+  color: #000; font-family: 'Cairo', sans-serif;
+  font-size: 1rem; font-weight: 700; cursor: pointer;
+  transition: all 0.3s;
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0,212,255,0.3);
+}
+.btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-success {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, var(--success), #059669);
+  border: none; border-radius: 10px;
+  color: #fff; font-family: 'Cairo', sans-serif;
+  font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  transition: all 0.3s;
+  display: none; margin-top: 12px;
+}
+.btn-success.show { display: block; }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(16,185,129,0.3); }
+
+.btn-secondary {
+  width: 100%;
+  padding: 13px;
+  background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: 'Cairo', sans-serif;
+  font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Status */
+.status {
+  display: none;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 0.85rem; font-weight: 600;
+  margin-top: 12px;
+  align-items: center; gap: 10px;
+}
+.status.show { display: flex; }
+.status.processing { background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.2); color: var(--accent); }
+.status.success { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); color: var(--success); }
+.status.error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: var(--error); }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(0,212,255,0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Stats */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+  display: none;
+}
+.stats-row.show { display: grid; }
+.stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+.stat-num { font-size: 1.6rem; font-weight: 900; color: var(--accent); line-height: 1; margin-bottom: 3px; }
+.stat-num.g { color: var(--success); }
+.stat-num.y { color: var(--warning); }
+.stat-label { font-size: 0.7rem; color: var(--text-muted); }
+
+/* Quota info */
+.quota-info {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.quota-info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.quota-info-label { font-size: 0.8rem; color: var(--text-muted); }
+.quota-info-val { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.quota-info-val.green { color: var(--success); }
+.quota-info-val.red { color: var(--error); }
+
+/* History */
+.history-list { max-height: 200px; overflow-y: auto; }
+.history-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+.history-item:last-child { border-bottom: none; }
+.history-skus { font-weight: 700; color: var(--accent); }
+.history-date { color: var(--text-muted); }
+.history-note { color: var(--warning); font-size: 0.72rem; }
+
+/* Info box */
+.info-box {
+  background: rgba(124,58,237,0.08);
+  border: 1px solid rgba(124,58,237,0.2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  color: #a78bfa;
+  line-height: 1.8;
+  margin-bottom: 16px;
+}
+.info-box strong { color: #c4b5fd; }
+
+@keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar: Warehouses -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h2>⚡ معالج الليسته</h2>
+      <button class="btn-add-warehouse" onclick="toggleAddForm()">+ إضافة مخزن جديد</button>
+      <div class="add-warehouse-form" id="addWarehouseForm">
+        <input type="text" id="newWarehouseName" placeholder="اسم المخزن..." onkeydown="if(event.key==='Enter')addWarehouse()" />
+        <div class="form-btns">
+          <button class="btn-confirm" onclick="addWarehouse()">إضافة</button>
+          <button class="btn-cancel-sm" onclick="toggleAddForm()">إلغاء</button>
+        </div>
+      </div>
+    </div>
+    <div class="warehouses-list" id="warehousesList">
+      <div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.8rem;">جاري التحميل...</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div id="emptyState" class="empty-state">
+      <div class="big-icon">🏭</div>
+      <h3>اختار مخزن من القايمة</h3>
+      <p>أو أضف مخزن جديد للبدء</p>
+    </div>
+
+    <div id="warehousePanel" style="display:none">
+      <div class="page-header">
+        <h1 id="panelTitle">اسم المخزن</h1>
+        <p id="panelSub">معالجة الليسته وإدارة الكوتة</p>
+      </div>
+
+      <div class="cards-grid">
+
+        <!-- Process List -->
+        <div class="card">
+          <div class="card-title"><span class="card-icon">⚡</span> رفع ومعالجة الليسته</div>
+
+          <div class="info-box">
+            <strong>قاعدة الـ OrderMaximumQuantity:</strong><br>
+            • كوتة داخلية في الليسته → قيمتها<br>
+            • في شيت كوتة منفصل → 1<br>
+            • بدون كوتة → محفوظة من قبل أو 10,000
+          </div>
+
+          <div class="drop-zone" id="listDrop">
+            <input type="file" id="listFile" accept=".xlsx,.xls" onchange="handleListFile(this)" />
+            <span class="drop-icon">📊</span>
+            <div class="drop-text"><strong>ارفع الليسته هنا</strong><br><small>Excel فقط</small></div>
+            <span class="file-badge" id="listFileBadge"></span>
+          </div>
+
+          <div class="drop-zone" id="quotaDrop">
+            <input type="file" id="quotaFileInput" accept=".xlsx,.xls" onchange="handleQuotaFile(this)" />
+            <span class="drop-icon">🎯</span>
+            <div class="drop-text">
+              <span class="optional-tag">اختياري</span>
+              <strong>شيت الكوتة الجديدة</strong><br>
+              <small>لو مفيش، هيستخدم الكوتة المحفوظة</small>
+            </div>
+            <span class="file-badge" id="quotaFileBadge"></span>
+          </div>
+
+          <button class="btn-primary" id="processBtn" onclick="processList()" disabled>⚡ تظبيط الليسته</button>
+          <div class="status" id="processStatus"></div>
+          <div class="stats-row" id="processStats">
+            <div class="stat"><div class="stat-num" id="sTotal">0</div><div class="stat-label">إجمالي</div></div>
+            <div class="stat"><div class="stat-num g" id="sQuota">0</div><div class="stat-label">بالكوتة</div></div>
+            <div class="stat"><div class="stat-num y" id="sMissing">0</div><div class="stat-label">خارج الليسته</div></div>
+          </div>
+          <button class="btn-success" id="downloadBtn">⬇️ تحميل الشيت الجاهز</button>
+        </div>
+
+        <!-- Quota Management -->
+        <div class="card">
+          <div class="card-title"><span class="card-icon">🎯</span> إدارة الكوتة</div>
+
+          <div class="quota-info" id="quotaInfoBox">
+            <div class="quota-info-row">
+              <span class="quota-info-label">الكوتة الحالية</span>
+              <span class="quota-info-val" id="qCurrentCount">—</span>
+            </div>
+            <div class="quota-info-row">
+              <span class="quota-info-label">آخر تحديث</span>
+              <span class="quota-info-val" id="qLastUpdate">—</span>
+            </div>
+          </div>
+
+          <div class="drop-zone" id="saveQuotaDrop">
+            <input type="file" id="saveQuotaFile" accept=".xlsx,.xls" onchange="handleSaveQuotaFile(this)" />
+            <span class="drop-icon">📋</span>
+            <div class="drop-text"><strong>ارفع شيت الكوتة الجديدة</strong><br><small>هيحفظها ويستخدمها للمرات الجاية</small></div>
+            <span class="file-badge" id="saveQuotaBadge"></span>
+          </div>
+
+          <input type="text" id="quotaNote" placeholder="ملاحظة (اختياري)..."
+            style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Cairo',sans-serif;font-size:0.82rem;margin-bottom:12px;outline:none;" />
+
+          <button class="btn-secondary" id="saveQuotaBtn" onclick="saveQuota()" disabled>💾 حفظ الكوتة</button>
+          <div class="status" id="saveQuotaStatus"></div>
+
+          <div style="margin-top:20px">
+            <div style="font-size:0.8rem;font-weight:700;color:var(--text-muted);margin-bottom:10px">📜 تاريخ الكوتات</div>
+            <div class="history-list" id="historyList">
+              <div style="text-align:center;color:var(--text-muted);font-size:0.78rem;padding:20px">مفيش تاريخ</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '';  // Same origin
+let currentWarehouse = null;
+let listFileObj = null;
+let quotaFileObj = null;
+let saveQuotaFileObj = null;
+let downloadBlob = null;
+let downloadName = '';
+
+// ─── Warehouses ──────────────────────────────────────────────────────────────
+async function loadWarehouses() {
+  try {
+    const res = await fetch(`${API}/api/warehouses`);
+    const data = await res.json();
+    renderWarehouses(data);
+  } catch(e) {
+    document.getElementById('warehousesList').innerHTML = '<div style="color:var(--error);font-size:0.8rem;padding:10px">خطأ في الاتصال بالسيرفر</div>';
+  }
+}
+
+function renderWarehouses(warehouses) {
+  const el = document.getElementById('warehousesList');
+  if (!warehouses.length) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.78rem">مفيش مخازن<br>أضف مخزن للبدء</div>';
+    return;
+  }
+  el.innerHTML = warehouses.map(w => `
+    <div class="warehouse-item ${currentWarehouse?.id === w.id ? 'active' : ''}" onclick="selectWarehouse(${w.id}, '${w.name}', ${w.quota_count})">
+      <button class="btn-delete-warehouse" onclick="event.stopPropagation();deleteWarehouse(${w.id},'${w.name}')">🗑</button>
+      <div class="warehouse-name">${w.name}</div>
+      <div class="warehouse-meta">${w.quota_count > 0 ? `${w.quota_count} صنف` : 'بدون كوتة'} ${w.last_quota_update ? '· ' + formatDate(w.last_quota_update) : ''}</div>
+      <span class="warehouse-quota-badge ${w.quota_count > 0 ? '' : 'no-quota'}">${w.quota_count > 0 ? '✓ عنده كوتة' : '✗ بدون كوتة'}</span>
+    </div>
+  `).join('');
+}
+
+function selectWarehouse(id, name, quotaCount) {
+  currentWarehouse = { id, name, quotaCount };
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('warehousePanel').style.display = 'block';
+  document.getElementById('panelTitle').textContent = name;
+  document.getElementById('panelSub').textContent = quotaCount > 0 ? `عنده كوتة محفوظة (${quotaCount} صنف)` : 'مفيش كوتة محفوظة — هيستخدم 10,000 للكل';
+  resetProcessForm();
+  loadQuotaInfo();
+  loadWarehouses();
+}
+
+async function addWarehouse() {
+  const name = document.getElementById('newWarehouseName').value.trim();
+  if (!name) return;
+  const res = await fetch(`${API}/api/warehouses`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name})
+  });
+  if (res.ok) {
+    document.getElementById('newWarehouseName').value = '';
+    toggleAddForm();
+    loadWarehouses();
+  } else {
+    const err = await res.json();
+    alert(err.detail || 'خطأ');
+  }
+}
+
+async function deleteWarehouse(id, name) {
+  if (!confirm(`هتمسح المخزن "${name}"؟`)) return;
+  await fetch(`${API}/api/warehouses/${id}`, { method: 'DELETE' });
+  if (currentWarehouse?.id === id) {
+    currentWarehouse = null;
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('warehousePanel').style.display = 'none';
+  }
+  loadWarehouses();
+}
+
+function toggleAddForm() {
+  const form = document.getElementById('addWarehouseForm');
+  form.classList.toggle('show');
+  if (form.classList.contains('show')) document.getElementById('newWarehouseName').focus();
+}
+
+// ─── Quota Info ───────────────────────────────────────────────────────────────
+async function loadQuotaInfo() {
+  if (!currentWarehouse) return;
+  const res = await fetch(`${API}/api/warehouses/${currentWarehouse.id}/quota`);
+  const data = await res.json();
+
+  const countEl = document.getElementById('qCurrentCount');
+  const dateEl = document.getElementById('qLastUpdate');
+
+  if (data.skus.length > 0) {
+    countEl.textContent = data.skus.length + ' صنف';
+    countEl.className = 'quota-info-val green';
+    dateEl.textContent = formatDate(data.updated_at);
+  } else {
+    countEl.textContent = 'مفيش كوتة';
+    countEl.className = 'quota-info-val red';
+    dateEl.textContent = '—';
+  }
+
+  const histEl = document.getElementById('historyList');
+  if (data.history.length === 0) {
+    histEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:0.78rem;padding:16px">مفيش تاريخ</div>';
+  } else {
+    histEl.innerHTML = data.history.map(h => `
+      <div class="history-item">
+        <div>
+          <span class="history-skus">${h.skus_count} صنف</span>
+          ${h.note ? `<span class="history-note"> · ${h.note}</span>` : ''}
+        </div>
+        <span class="history-date">${formatDate(h.created_at)}</span>
+      </div>
+    `).join('');
+  }
+}
+
+// ─── Process List ─────────────────────────────────────────────────────────────
+function handleListFile(input) {
+  listFileObj = input.files[0];
+  if (!listFileObj) return;
+  document.getElementById('listDrop').classList.add('has-file');
+  document.getElementById('listFileBadge').textContent = '✅ ' + listFileObj.name;
+  document.getElementById('processBtn').disabled = false;
+  resetProcessOutput();
+}
+
+function handleQuotaFile(input) {
+  quotaFileObj = input.files[0];
+  if (!quotaFileObj) return;
+  document.getElementById('quotaDrop').classList.add('has-file');
+  document.getElementById('quotaFileBadge').textContent = '✅ ' + quotaFileObj.name;
+  resetProcessOutput();
+}
+
+async function processList() {
+  if (!listFileObj || !currentWarehouse) return;
+
+  showStatus('processStatus', 'processing', 'جاري المعالجة...');
+  document.getElementById('processBtn').disabled = true;
+  document.getElementById('downloadBtn').classList.remove('show');
+  document.getElementById('processStats').classList.remove('show');
+
+  const fd = new FormData();
+  fd.append('warehouse_id', currentWarehouse.id);
+  fd.append('list_file', listFileObj);
+  if (quotaFileObj) fd.append('quota_file', quotaFileObj);
+
+  try {
+    const res = await fetch(`${API}/api/process`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const err = await res.json();
+      showStatus('processStatus', 'error', '❌ ' + (err.detail || 'حصل خطأ'));
+      document.getElementById('processBtn').disabled = false;
+      return;
+    }
+
+    downloadBlob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    downloadName = decodeURIComponent(cd.split("filename*=UTF-8''")[1] || 'output_import.xlsx');
+
+    // Estimate counts from blob size (we'll show total from filename)
+    showStatus('processStatus', 'success', '✅ تم! الشيت جاهز للتحميل');
+    document.getElementById('downloadBtn').classList.add('show');
+    document.getElementById('downloadBtn').onclick = () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(downloadBlob);
+      a.download = downloadName;
+      a.click();
+    };
+
+    if (quotaFileObj) loadQuotaInfo();
+    loadWarehouses();
+
+  } catch(e) {
+    showStatus('processStatus', 'error', '❌ خطأ في الاتصال بالسيرفر');
+  }
+  document.getElementById('processBtn').disabled = false;
+}
+
+// ─── Save Quota ───────────────────────────────────────────────────────────────
+function handleSaveQuotaFile(input) {
+  saveQuotaFileObj = input.files[0];
+  if (!saveQuotaFileObj) return;
+  document.getElementById('saveQuotaDrop').classList.add('has-file');
+  document.getElementById('saveQuotaBadge').textContent = '✅ ' + saveQuotaFileObj.name;
+  document.getElementById('saveQuotaBtn').disabled = false;
+}
+
+async function saveQuota() {
+  if (!saveQuotaFileObj || !currentWarehouse) return;
+  showStatus('saveQuotaStatus', 'processing', 'جاري الحفظ...');
+  document.getElementById('saveQuotaBtn').disabled = true;
+
+  const fd = new FormData();
+  fd.append('file', saveQuotaFileObj);
+  fd.append('note', document.getElementById('quotaNote').value);
+
+  try {
+    const res = await fetch(`${API}/api/warehouses/${currentWarehouse.id}/quota`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (res.ok) {
+      showStatus('saveQuotaStatus', 'success', `✅ ${data.message}`);
+      document.getElementById('saveQuotaDrop').classList.remove('has-file');
+      document.getElementById('saveQuotaBadge').textContent = '';
+      document.getElementById('saveQuotaFile').value = '';
+      document.getElementById('quotaNote').value = '';
+      saveQuotaFileObj = null;
+      loadQuotaInfo();
+      loadWarehouses();
+    } else {
+      showStatus('saveQuotaStatus', 'error', '❌ ' + (data.detail || 'خطأ'));
+    }
+  } catch(e) {
+    showStatus('saveQuotaStatus', 'error', '❌ خطأ في الاتصال');
+  }
+  document.getElementById('saveQuotaBtn').disabled = false;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function showStatus(elId, type, msg) {
+  const el = document.getElementById(elId);
+  el.className = 'status show ' + type;
+  el.innerHTML = type === 'processing'
+    ? `<div class="spinner"></div><span>${msg}</span>`
+    : `<span>${msg}</span>`;
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('ar-EG') + ' ' + d.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+}
+
+function resetProcessForm() {
+  listFileObj = null; quotaFileObj = null;
+  document.getElementById('listDrop').classList.remove('has-file');
+  document.getElementById('quotaDrop').classList.remove('has-file');
+  document.getElementById('listFileBadge').textContent = '';
+  document.getElementById('quotaFileBadge').textContent = '';
+  document.getElementById('listFile').value = '';
+  document.getElementById('quotaFileInput').value = '';
+  document.getElementById('processBtn').disabled = true;
+  resetProcessOutput();
+}
+
+function resetProcessOutput() {
+  downloadBlob = null;
+  document.getElementById('processStats').classList.remove('show');
+  document.getElementById('downloadBtn').classList.remove('show');
+  document.getElementById('processStatus').className = 'status';
+}
+
+// Drag and drop
+['listDrop', 'quotaDrop', 'saveQuotaDrop'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragover'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragover'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('dragover');
+    const input = el.querySelector('input[type="file"]');
+    const dt = new DataTransfer();
+    if (e.dataTransfer.files[0]) {
+      dt.items.add(e.dataTransfer.files[0]);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+});
+
+// Init
+loadWarehouses();
+</script>
+</body>
+</html>
