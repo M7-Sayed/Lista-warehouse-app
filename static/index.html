@@ -116,7 +116,48 @@ body::before {
   font-family: 'Cairo', sans-serif; font-size: 0.8rem; cursor: pointer;
 }
 
-.warehouses-list { padding: 12px; flex: 1; }
+/* Search box */
+.search-box {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.search-box input {
+  width: 100%;
+  padding: 8px 12px 8px 32px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Cairo', sans-serif;
+  font-size: 0.82rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-box input:focus { border-color: var(--accent); }
+.search-box input::placeholder { color: var(--text-muted); }
+.search-icon {
+  position: absolute;
+  left: 22px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.search-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0 0;
+}
+.no-results {
+  text-align: center;
+  padding: 24px 10px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.warehouses-list { padding: 12px; flex: 1; overflow-y: auto; }
 
 .warehouse-item {
   padding: 12px 14px;
@@ -416,9 +457,12 @@ body::before {
         </div>
       </div>
     </div>
-    <div class="warehouses-list" id="warehousesList">
-      <div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.8rem;">جاري التحميل...</div>
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="warehouseSearch" placeholder="ابحث عن مخزن..." oninput="filterWarehouses(this.value)" />
+      <div class="search-count" id="searchCount"></div>
     </div>
+    <div class="warehouses-list" id="warehousesList"></div>
   </aside>
 
   <!-- Main -->
@@ -527,26 +571,58 @@ let downloadBlob = null;
 let downloadName = '';
 
 // ─── Warehouses ──────────────────────────────────────────────────────────────
+let allWarehouses = [];
+
 async function loadWarehouses() {
   try {
     const res = await fetch(`${API}/api/warehouses`);
-    const data = await res.json();
-    renderWarehouses(data);
+    allWarehouses = await res.json();
+    const query = document.getElementById('warehouseSearch')?.value || '';
+    filterWarehouses(query);
   } catch(e) {
     document.getElementById('warehousesList').innerHTML = '<div style="color:var(--error);font-size:0.8rem;padding:10px">خطأ في الاتصال بالسيرفر</div>';
   }
 }
 
-function renderWarehouses(warehouses) {
+function filterWarehouses(query) {
+  const q = query.trim().toLowerCase();
+  const filtered = q ? allWarehouses.filter(w => w.name.toLowerCase().includes(q)) : allWarehouses;
+  renderWarehouses(filtered, q);
+}
+
+function renderWarehouses(warehouses, query = '') {
   const el = document.getElementById('warehousesList');
-  if (!warehouses.length) {
+  const countEl = document.getElementById('searchCount');
+
+  // Update count
+  if (query) {
+    countEl.textContent = `${warehouses.length} من ${allWarehouses.length} مخزن`;
+  } else {
+    countEl.textContent = allWarehouses.length > 0 ? `${allWarehouses.length} مخزن` : '';
+  }
+
+  if (allWarehouses.length === 0) {
     el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:0.78rem">مفيش مخازن<br>أضف مخزن للبدء</div>';
     return;
   }
+
+  if (warehouses.length === 0) {
+    el.innerHTML = `<div class="no-results">🔍 مفيش نتائج لـ "<strong>${query}</strong>"</div>`;
+    return;
+  }
+
+  // Highlight matching text
+  function highlight(text, q) {
+    if (!q) return text;
+    const idx = text.toLowerCase().indexOf(q);
+    if (idx === -1) return text;
+    return text.slice(0, idx) + `<mark style="background:rgba(0,212,255,0.25);color:var(--accent);border-radius:2px">${text.slice(idx, idx + q.length)}</mark>` + text.slice(idx + q.length);
+  }
+
   el.innerHTML = warehouses.map(w => `
     <div class="warehouse-item ${currentWarehouse?.id === w.id ? 'active' : ''}" onclick="selectWarehouse(${w.id}, '${w.name}', ${w.quota_count})">
       <button class="btn-delete-warehouse" onclick="event.stopPropagation();deleteWarehouse(${w.id},'${w.name}')">🗑</button>
-      <div class="warehouse-name">${w.name}</div>
+      <div class="warehouse-name">${highlight(w.name, query.toLowerCase())}</div>
       <div class="warehouse-meta">${w.quota_count > 0 ? `${w.quota_count} صنف` : 'بدون كوتة'} ${w.last_quota_update ? '· ' + formatDate(w.last_quota_update) : ''}</div>
       <span class="warehouse-quota-badge ${w.quota_count > 0 ? '' : 'no-quota'}">${w.quota_count > 0 ? '✓ عنده كوتة' : '✗ بدون كوتة'}</span>
     </div>
